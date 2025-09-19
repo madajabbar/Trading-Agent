@@ -1,7 +1,7 @@
 import pandas as pd
 import talib
 import json
-from api_clients import get_historical_data
+from api_clients import get_historical_data, get_market_sentiment
 
 def find_potential_coins(tickers):
     """
@@ -11,7 +11,7 @@ def find_potential_coins(tickers):
         return []
     
     MAX_COIN_PRICE = 10.0
-    INITIAL_CANDIDATES = 20
+    INITIAL_CANDIDATES = 500
     
     print(f"\n💡 Memindai seluruh pasar (Filter harga maks: ${MAX_COIN_PRICE}, Kandidat Awal: {INITIAL_CANDIDATES})...")
     try:
@@ -144,7 +144,7 @@ def make_decision_mean_reversion(symbol, open_positions, current_price):
             
     return decision, log_message
 
-def make_adaptive_decision(symbol, open_positions, current_price):
+def make_adaptive_decision_traditional(symbol, open_positions, current_price):
     """Fungsi master yang memilih strategi dan mengembalikan keputusan + log."""
     market_condition_data = get_historical_data(symbol, interval='60', limit=100)
     indicators = calculate_indicators(market_condition_data)
@@ -167,3 +167,77 @@ def make_adaptive_decision(symbol, open_positions, current_price):
     else:
         log_message += "\n -> Kondisi: TIDAK JELAS. Menghindari pasar."
         return "HOLD", log_message
+
+def make_adaptive_decision(symbol, open_positions, current_price):
+    """
+    Filter 2 lapis dengan pengecekan data ATR di awal.
+    """
+    log_message = f"🤔 Menganalisis {symbol}..."
+    
+    # --- PINDAHKAN PENGECEKAN ATR KE ATAS ---
+    # Ambil data 1 jam untuk ATR (diperlukan untuk membuka posisi)
+    tf_1h_data_for_atr = get_historical_data(symbol, interval='60', limit=100)
+    indicators_for_atr = calculate_indicators(tf_1h_data_for_atr)
+    atr = indicators_for_atr.get('atr')
+
+    if not atr:
+        return "HOLD", log_message + f"\n -> 🟡 Data ATR tidak lengkap untuk {symbol}."
+
+    # --- FILTER LAPIS 1: PEMINDAIAN TEKNIKAL CEPAT ---
+    data = get_historical_data(symbol, interval='15', limit=100)
+    indicators = calculate_indicators(data)
+    rsi = indicators.get('rsi')
+    bband_upper = indicators.get('bband_upper')
+    bband_lower = indicators.get('bband_lower')
+
+    if not all([rsi, bband_upper, bband_lower]):
+        return "HOLD", log_message + "\n -> 🟡 Data teknikal awal tidak lengkap."
+
+    is_potential_long = current_price <= bband_lower and rsi < 35
+    is_potential_short = current_price >= bband_upper and rsi > 65
+
+    if not (is_potential_long or is_potential_short):
+        log_message += f"\n -> 🟡 Sinyal teknikal awal tidak cukup kuat (RSI: {rsi:.2f})."
+        return "HOLD", log_message
+    
+    # --- FILTER LAPIS 2: ANALISIS AI UNTUK KANDIDAT TERPILIH ---
+    log_message += "\n -> ✅ Lolos filter teknikal! Meminta analisis mendalam dari AI..."
+    
+    # Kumpulkan data tambahan untuk prompt AI
+    tf_1h_data = get_historical_data(symbol, interval='60', limit=100)
+    tf_1h_indicators = calculate_indicators(tf_1h_data)
+    adx = tf_1h_indicators.get('adx', 'N/A')
+    
+    # Bangun prompt komprehensif (sama seperti sebelumnya)
+    prompt = f"""
+    Analyze the trading potential for {symbol}. A pre-screening of technical indicators suggests a potential {'LONG' if is_potential_long else 'SHORT'} signal.
+    Provide your output ONLY in a JSON format.
+
+    # Context
+    - Market Condition (ADX on 1h): {adx}
+    - Signal Data (15m): RSI={rsi:.2f}, Price={current_price}, Upper_BB={bband_upper}, Lower_BB={bband_lower}
+
+    # Task
+    Confirm if this is a high-probability entry. Provide a confidence score from -10 (strong SHORT) to +10 (strong LONG). A score between -6 and 6 means HOLD. Provide reasoning.
+    
+    JSON Example: {{"decision": "LONG", "confidence_score": 8, "reason": "Price is at a strong support level (Lower BB) and RSI confirms oversold."}}
+    """
+    
+    ai_response_text = get_market_sentiment(prompt)
+    if not ai_response_text: return "HOLD", log_message + "\n -> ⚠️ Tidak ada respons dari AI."
+
+    try:
+        clean_json_text = ai_response_text.replace("```json", "").replace("```", "").strip()
+        ai_data = json.loads(clean_json_text)
+        score = ai_data.get("confidence_score", 0)
+        reason = ai_data.get("reason", "N/A")
+        log_message += f"\n -> 🧠 Analisis Gemini: Skor = {score}, Alasan = {reason}"
+
+        if not (symbol in open_positions):
+            if score >= 7: return "GO_LONG", log_message
+            elif score <= -7: return "GO_SHORT", log_message
+        
+    except Exception as e:
+        log_message += f"\n -> ⚠️ Gagal memproses respons AI: {e}"
+
+    return "HOLD", log_message

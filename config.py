@@ -28,7 +28,7 @@ try:
     
     # Koneksi Gemini
     genai.configure(api_key=GEMINI_API_KEY)
-    gemini_model = genai.GenerativeModel('gemini-1.5-flash-latest')
+    gemini_model = genai.GenerativeModel('gemini-2.5-flash-lite')
     print("✅ Koneksi API berhasil dikonfigurasi.")
 
 except Exception as e:
