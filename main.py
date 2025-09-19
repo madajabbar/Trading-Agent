@@ -61,7 +61,7 @@ def open_position(symbol, side, price, atr):
             "take_profit_price": tp_price # <-- BARU
         }
         
-        tsl_price = OPEN_POSITIONS[symbol]['trailing_stop_price']
+        # tsl_price = OPEN_POSITIONS[symbol]['trailing_stop_price']
         log_entry = { "timestamp": pd.Timestamp.now().isoformat(), "symbol": symbol, "action": "OPEN", "side": side, "price": price, "size": size_in_coin, "margin": MARGIN_PER_TRADE, "pnl": 0 }
         print(f"✅ POSISI DIBUKA: {side} {symbol} | SL @ ${sl_price:,.4f} | TP @ ${tp_price:,.4f}")
         SIMULATION_LOG.append(log_entry)

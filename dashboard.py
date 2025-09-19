@@ -73,7 +73,7 @@ while True:
             st.info("Tidak ada posisi yang sedang terbuka.")
         else:
             positions_df = pd.DataFrame(positions_list)
-            display_cols = ['symbol', 'side', 'entry_price', 'current_price', 'size', 'margin', 'unrealized_pnl', 'trailing_stop_price']
+            display_cols = ['symbol', 'side', 'entry_price', 'current_price', 'size', 'margin', 'unrealized_pnl', 'stop_loss_price', 'take_profit_price']
             st.dataframe(positions_df[display_cols], use_container_width=True)
 
         # --- BAGIAN UNTUK MENAMPILKAN TRADING LOG ---
