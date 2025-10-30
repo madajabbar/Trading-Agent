@@ -1,0 +1,15 @@
+{
+  "trading_settings": {
+    "leverage": 10,
+    "margin_per_trade": 1.0,
+    "bybit_taker_fee": 0.0006
+  },
+  "risk_management": {
+    "scalping_sl_pct": 0.0012,
+    "scalping_tp_pct": 0.0040
+  },
+  "market_scanner": {
+    "min_coin_price": 0.1,
+    "min_volume_usdt": 100000
+  }
+}
